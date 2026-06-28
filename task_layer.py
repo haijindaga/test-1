@@ -458,6 +458,7 @@ class ClosedLoopResult:
     safe: bool
     aborted: bool
     steps: List[StepRecord]
+    abort_reason: str = ""
 
     def format(self, env: Optional[SymbolicEnv] = None) -> str:
         def lbl(a: str) -> str:
@@ -482,6 +483,8 @@ class ClosedLoopResult:
         status = (
             f"goal_reached={self.goal_reached} safe={self.safe} aborted={self.aborted}"
         )
+        if self.abort_reason:
+            status += f" ({self.abort_reason})"
         return "\n".join(lines + [f"  --> {status}"])
 
 
@@ -492,7 +495,7 @@ def run_closed_loop(
     task: str,
     *,
     max_steps: int = 30,
-    max_retries: int = 12,
+    max_retries: int = 8,
     stop_at_goal: bool = False,
     verbose: bool = False,
 ) -> ClosedLoopResult:
@@ -513,12 +516,22 @@ def run_closed_loop(
     "go to yellow after placing") complete even once the goal predicate already
     holds.  Set ``stop_at_goal=True`` to stop as soon as the goal is reached
     (useful to keep a real LLM from wandering past completion).
+
+    Two guards stop a weak planner from spinning uselessly (instead of grinding
+    to ``max_steps``):
+      * per-step repeat guard -- if regeneration keeps returning an action
+        already rejected this step (common with deterministic decoding), stop
+        retrying that step;
+      * loop guard -- if the planner would commit the same action from a state
+        it has already acted from, the run is stuck and aborts early.
     """
     state = env.initial_state()
     action_sequence: List[str] = []
     plan_tuple: List[Tuple[str, FrozenSet[str]]] = []
     steps: List[StepRecord] = []
+    committed_pairs: Set[Tuple[State, str]] = set()
     aborted = False
+    abort_reason = ""
 
     for index in range(max_steps):
         if stop_at_goal and env.is_goal(state):
@@ -529,13 +542,19 @@ def run_closed_loop(
 
         rejected: List[str] = []
         feedback_text: List[str] = []
+        tried: Set[str] = set()
         feedback = supervisor.check_safety(action_sequence, action)
         retries = 0
         while feedback and retries < max_retries:
             rejected.append(action)
             feedback_text.append(", ".join(c.name for c in feedback))
+            tried.add(action)
             action = planner.regenerate(state, actions, task, action, feedback)
             feedback = supervisor.check_safety(action_sequence, action)
+            if action in tried:
+                # planner keeps proposing an already-rejected action -> give up
+                # on this step rather than burning the whole retry budget.
+                break
             retries += 1
 
         if feedback:
@@ -544,6 +563,7 @@ def run_closed_loop(
                 StepRecord(index, action, rejected, feedback_text, frozenset())
             )
             aborted = True
+            abort_reason = "no safe action could be generated"
             break
 
         if action == DONE:
@@ -551,6 +571,18 @@ def run_closed_loop(
             action_sequence.append(DONE)
             steps.append(StepRecord(index, DONE, rejected, feedback_text, frozenset()))
             break
+
+        # Loop guard: committing the same action from a state we have already
+        # acted from means the planner is going in circles (no progress).
+        pair = (state, action)
+        if pair in committed_pairs:
+            steps.append(
+                StepRecord(index, action, rejected, feedback_text, frozenset())
+            )
+            aborted = True
+            abort_reason = "stuck in a loop (no progress toward the goal)"
+            break
+        committed_pairs.add(pair)
 
         obstacles = supervisor.find_obstacle(action_sequence, action)
         plan_tuple.append((action, obstacles))
@@ -572,6 +604,7 @@ def run_closed_loop(
         safe=supervisor.is_sequence_safe(committed),
         aborted=aborted,
         steps=steps,
+        abort_reason=abort_reason,
     )
 
 

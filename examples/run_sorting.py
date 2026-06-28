@@ -23,6 +23,12 @@ from scenarios import SORTING, make_supervisor
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--llm", action="store_true", help="use the Ollama planner")
+    parser.add_argument("--max-steps", type=int, default=30,
+                        help="max planning steps before giving up (default 30)")
+    parser.add_argument("--max-retries", type=int, default=8,
+                        help="max regenerations per step on a violation (default 8)")
+    parser.add_argument("--stop-at-goal", action="store_true",
+                        help="stop as soon as the goal is reached")
     args = parser.parse_args()
 
     scenario = SORTING
@@ -39,7 +45,11 @@ def main() -> None:
     planner = OllamaPlanner() if args.llm else ScriptedPlanner(scenario.scripted_plan)
 
     print("Closed loop (task plan tuple = action, obstacle):")
-    result = run_closed_loop(scenario.env, planner, supervisor, scenario.task)
+    result = run_closed_loop(
+        scenario.env, planner, supervisor, scenario.task,
+        max_steps=args.max_steps, max_retries=args.max_retries,
+        stop_at_goal=args.stop_at_goal,
+    )
     print(result.format(scenario.env))
     print()
 

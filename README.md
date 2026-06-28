@@ -84,6 +84,19 @@ python examples/run_sorting.py --llm
 Configure via env vars: `OLLAMA_MODEL` (default `qwen2.5:7b`) and
 `OLLAMA_BASE_URL` (default `http://localhost:11434/v1`).
 
+A weak local model may keep proposing the same blocked action without making
+progress. The supervisor still blocks every unsafe action (safety holds), but
+the task may not complete. The loop detects this and stops early ("stuck in a
+loop") instead of grinding to the step cap. You can tune the limits:
+
+```bash
+python examples/run_sorting.py --llm --max-steps 12 --max-retries 4
+python examples/run_sorting.py --llm --stop-at-goal      # stop once goal reached
+```
+
+Note: a high *safety* rate with a low *success* rate is the expected signature of
+a weak planner — safety comes from spot, task success from the LLM.
+
 ---
 
 ## How CheckSafety works (and a note on the paper's formulas)
