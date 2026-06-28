@@ -1,0 +1,13 @@
+# Python (pip) dependencies.
+#
+# NOTE: the formal backend `spot` is NOT a pip package -- the PyPI project
+# named "spot" is something unrelated. Install spot via conda-forge or apt:
+#
+#     conda install -c conda-forge spot
+#   or (Ubuntu, from the official spot apt repository)
+#     sudo apt-get install python3-spot
+#
+# See environment.yml for a ready-made conda environment.
+
+openai>=1.0
+pytest>=7.0

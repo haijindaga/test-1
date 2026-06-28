@@ -1,0 +1,16 @@
+# Conda environment for the cross-layer reproduction.
+#
+#   conda env create -f environment.yml
+#   conda activate crosslayer
+#
+# `spot` is only available via conda-forge (or apt); it cannot be pip-installed.
+name: crosslayer
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - spot
+  - pip
+  - pip:
+      - openai>=1.0
+      - pytest>=7.0

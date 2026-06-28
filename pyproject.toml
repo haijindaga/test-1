@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+# Run tests from the repo root and put the top-level modules on the path so
+# `import task_layer` / `import scenarios` work without installing the package.
+pythonpath = ["."]
+testpaths = ["tests"]
