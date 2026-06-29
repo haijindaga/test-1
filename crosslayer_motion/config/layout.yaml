@@ -1,27 +1,26 @@
-# Motion-layer layout for the nav_demo obstacle-avoidance demo.
+# Layout for the motion / interactive demo: WHERE each colored area is and how
+# big the obstacle box is. The plan/instruction only names areas; this file
+# gives them a place + a color. Read at runtime (pass via -p layout:=), so you
+# can edit numbers and re-run WITHOUT rebuilding.
 #
-# WHERE each region is (the end-effector target) and how big the obstacle box is.
-# The plan.json (from make_plan.py) only names regions; this file gives them a
-# place in space. Edit these numbers and re-run to try different layouts.
-#
-# NOTE: these are starting values for a Franka Panda. The z heights and z_base
-# (table top) depend on the actual Gazebo scene -- if MoveIt cannot reach a pose,
-# nudge the numbers here. Coordinates are in the panda_link0 (base) frame, metres.
+# Coordinates are in the panda_link0 (base) frame, metres. These are calibrated
+# starting values for the "left / center / right" obstacle-avoidance demo; tune
+# them to your scene (if MoveIt cannot reach a pose, pull it in / raise z).
+# color is RGB 0..1 (used for RViz markers and optional Gazebo tiles).
 
-# End-effector orientation for every "go to region" (gripper pointing down).
-ee_orientation_xyzw: [0.0, 1.0, 0.0, 0.0]
+ee_orientation_xyzw: [0.0, 1.0, 0.0, 0.0]   # gripper pointing down
 
 regions:
-  scan_pose:   {x: 0.40, y:  0.00, z: 0.45}   # start pose
-  white_area:  {x: 0.50, y:  0.00, z: 0.20}   # between scan and red -> avoidance shows here
-  red_area:    {x: 0.62, y:  0.00, z: 0.20}   # straight past white
-  yellow_area: {x: 0.50, y:  0.25, z: 0.20}   # off to the left
-  blue_area:   {x: 0.50, y: -0.25, z: 0.20}   # off to the right (permanent hazard)
+  scan_pose:   {x: 0.45, y:  0.25, z: 0.40, color: [0.6, 0.6, 0.6]}   # start (left)
+  white_area:  {x: 0.45, y:  0.00, z: 0.40, color: [1.0, 1.0, 1.0]}   # center
+  red_area:    {x: 0.45, y: -0.25, z: 0.40, color: [1.0, 0.0, 0.0]}   # right
+  yellow_area: {x: 0.45, y:  0.40, z: 0.40, color: [1.0, 1.0, 0.0]}
+  blue_area:   {x: 0.20, y:  0.40, z: 0.40, color: [0.0, 0.3, 1.0]}
 
 obstacle:
-  default_size: [0.12, 0.12, 0.30]   # box lx, ly, lz (m); height blocks the EE path
+  default_size: [0.10, 0.10, 0.50]   # box lx, ly, lz (m); tall enough to block the EE path
   z_base: 0.0                        # table top the box sits on (calibrate to the scene)
 
 planning:
-  max_velocity: 0.1                  # 0..1 scale; slow = easy to watch (from the sample)
+  max_velocity: 0.1
   max_acceleration: 0.1

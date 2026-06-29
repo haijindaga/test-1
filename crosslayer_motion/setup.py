@@ -23,6 +23,7 @@ setup(
     entry_points={
         "console_scripts": [
             "motion_executor = crosslayer_motion.motion_executor:main",
+            "interactive = crosslayer_motion.interactive:main",
         ],
     },
 )
