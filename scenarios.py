@@ -227,10 +227,94 @@ def _sorting_scenario() -> Scenario:
     )
 
 
+# --------------------------------------------------------------------------- #
+#  Scenario 3 : navigation demo for the motion layer (LLM-driven, go-only)     #
+# --------------------------------------------------------------------------- #
+def _nav_demo_scenario() -> Scenario:
+    """A go-only navigation scenario for the Gazebo obstacle-avoidance demo.
+
+    The safety RULES are fixed (avoid the white area until red is visited; never
+    enter the blue hazard); the TASK is free-form and meant to be driven by the
+    LLM (`make_plan.py --llm --task "..."`), so each task produces a different
+    motion while the supervisor always enforces the same rules. This is the
+    motion-layer counterpart of the Fig. 6 (a)/(b) ablation.
+
+    Only ``go_to_<region>`` actions exist (no grab/place); termination is
+    DONE-driven (the planner decides when the task is finished), so there is no
+    fixed goal predicate.
+    """
+    regions = ["scan_pose", "white_area", "yellow_area", "blue_area", "red_area"]
+    go_actions = [f"go_to_{r}" for r in regions]
+    actions = go_actions + ["done"]
+    labels = {f"go_to_{r}": f"Go to {r.replace('_', ' ')}" for r in regions}
+    labels["done"] = "DONE"
+
+    # Fixed safety rules (focused "avoid area" constraints -- no sequencing rules
+    # like phi2/phi3, so obstacles stay specific instead of "everything else").
+    constraints = [
+        Constraint(
+            name="phi1_white_until_red",
+            ltl="(!go_to_white_area) U go_to_red_area",
+            description="Do not go to the white area until the red area is visited.",
+        ),
+        Constraint(
+            name="hazard_avoid_blue",
+            ltl="G(!go_to_blue_area)",
+            description="Never enter the blue area (it is a permanent hazard).",
+        ),
+    ]
+
+    def transition(state: State, action: str) -> State:
+        s = set(state)
+        if action.startswith("go_to_"):
+            region = action[len("go_to_"):]
+            s = {p for p in s if not p.startswith("robot_at:")}
+            s.add(f"robot_at:{region}")
+            s.add(f"visited:{region}")
+        return frozenset(s)
+
+    def goal(state: State) -> bool:
+        return False  # DONE-driven: the planner signals completion itself
+
+    env = SymbolicEnv(
+        initial=frozenset({"robot_at:scan_pose", "visited:scan_pose"}),
+        transition_fn=transition,
+        goal_fn=goal,
+        action_space=actions,
+        labels=labels,
+    )
+
+    # Fallback script (used only without --llm) for the default task: a naive
+    # attempt to go straight to white (violates phi1) that the supervisor
+    # redirects via red.
+    scripted_plan = [
+        "go_to_white_area",   # UNSAFE: phi1 -> discarded
+        "go_to_red_area",     # regenerated
+        "go_to_white_area",   # now safe (red visited)
+        "done",
+    ]
+
+    return Scenario(
+        name="nav_demo",
+        task="Go to the white area",
+        action_space=actions,
+        labels=labels,
+        constraints=constraints,
+        env=env,
+        region_actions=go_actions,
+        scripted_plan=scripted_plan,
+    )
+
+
 SALMON = _salmon_scenario()
 SORTING = _sorting_scenario()
+NAV_DEMO = _nav_demo_scenario()
 
-SCENARIOS: Dict[str, Scenario] = {SALMON.name: SALMON, SORTING.name: SORTING}
+SCENARIOS: Dict[str, Scenario] = {
+    SALMON.name: SALMON,
+    SORTING.name: SORTING,
+    NAV_DEMO.name: NAV_DEMO,
+}
 
 
 def get_scenario(name: str) -> Scenario:
